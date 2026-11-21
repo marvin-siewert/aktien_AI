@@ -1,0 +1,29 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments & Conda temp files
+.venv/
+venv/
+env/
+aktien_ai_env/
+condaenv.*.requirements.txt
+
+# Environment variables & secrets (NEVER commit API keys)
+.env
+
+# Pytest & coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local market data cache & transient runtime logs
+data/cache/*.json
+data/sentinel_last_run.json
+
+# IDE & OS metadata
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

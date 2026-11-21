@@ -1,0 +1,46 @@
+{
+  "theses": {
+    "MSFT": {
+      "ticker": "MSFT",
+      "company_name": "Microsoft Corp.",
+      "saved_at": "2026-11-01T10:30:00",
+      "entry_price": 415.0,
+      "target_price": 510.0,
+      "traffic_light": "GREEN",
+      "movement_cause": "TEMPORARY_OVERREACTION",
+      "thesis_summary": "Kurzer Rücksetzer nach hohen Cloud-Capex-Ausgaben; strukturelles Wachstum durch Azure AI und Enterprise-Copilot-Adoption bleibt voll intakt.",
+      "catalysts": [
+        "Beschleunigtes Azure-Umsatzwachstum im nächsten Quartal",
+        "Steigende operative Marge durch KI-Monetarisierung"
+      ],
+      "risks": [
+        "Verzögerte Amortisation der Rechenzentrums-Investitionen"
+      ],
+      "source_urls": [
+        "https://www.reuters.com/technology/microsoft",
+        "https://finance.yahoo.com/quote/MSFT"
+      ]
+    },
+    "ASML.AS": {
+      "ticker": "ASML.AS",
+      "company_name": "ASML Holding N.V.",
+      "saved_at": "2026-10-28T15:00:00",
+      "entry_price": 660.0,
+      "target_price": 860.0,
+      "traffic_light": "GREEN",
+      "movement_cause": "TEMPORARY_OVERREACTION",
+      "thesis_summary": "Markt-Überreaktion auf verschobene Kundenbestellungen (Intel/Samsung); EUV-Monopol für 2nm-Chips bei TSMC sichert langfristige Preissetzungsmacht.",
+      "catalysts": [
+        "Anziehende High-NA EUV-Auftragseingänge durch TSMC",
+        "Erholung im Speicherchip-Zyklus"
+      ],
+      "risks": [
+        "Verschärfte Exportbeschränkungen nach China"
+      ],
+      "source_urls": [
+        "https://www.asml.com/en/investors",
+        "https://finance.yahoo.com/quote/ASML.AS"
+      ]
+    }
+  }
+}
