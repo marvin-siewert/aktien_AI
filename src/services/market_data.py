@@ -28,6 +28,14 @@ DAX_40_TICKERS: List[str] = [
     "SAP.DE", "SRT3.DE", "SIE.DE", "ENR.DE", "SHL.DE", "SY1.DE", "VOW3.DE", "ZAL.DE",
 ]
 
+# Popular MDAX & TecDAX constituents (XETRA .DE symbols)
+MDAX_TECDAX_TICKERS: List[str] = [
+    "AFX.DE", "AIXA.DE", "BC8.DE", "BOSS.DE", "DHER.DE", "EVD.DE", "EVK.DE", "FPE3.DE",
+    "FRA.DE", "G24.DE", "GXI.DE", "HAG.DE", "HOT.DE", "JEN.DE", "KBX.DE", "KGX.DE",
+    "LEG.DE", "LHA.DE", "LXS.DE", "NDX1.DE", "NEM.DE", "PUM.DE", "PSM.DE", "SDF.DE",
+    "SMA.DE", "SUSS.DE", "TEG.DE", "TKA.DE", "TLX.DE", "TUI1.DE", "UTDI.DE", "WCH.DE",
+]
+
 # Top 100 highly liquid S&P 500 stocks across all 11 GICS sectors for fast Quick-Scans
 TOP_100_SP500_TICKERS: List[str] = [
     # Technology & Semiconductors
@@ -136,10 +144,10 @@ class MarketDataService:
     def get_universe_tickers(self, mode: str = "quick", include_custom: bool = True) -> List[str]:
         """
         Build the list of stock tickers to scan.
-        - 'quick': DAX 40 + Top 100 S&P 500 + custom watchlist (~145 tickers)
-        - 'full': DAX 40 + Full S&P 500 (~540 tickers) + custom watchlist
+        - 'quick': DAX 40 + Top MDAX/TecDAX + Top 100 S&P 500 + custom watchlist
+        - 'full': DAX 40 + Top MDAX/TecDAX + Full S&P 500 + custom watchlist
         """
-        tickers: List[str] = list(DAX_40_TICKERS)
+        tickers: List[str] = list(DAX_40_TICKERS) + list(MDAX_TECDAX_TICKERS)
         if mode.lower() == "full":
             tickers.extend(self._load_full_sp500_tickers())
         else:

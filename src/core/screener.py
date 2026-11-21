@@ -67,7 +67,7 @@ class StockScreener:
         scan_mode: str = "quick",
         min_analysts: int = 12,
         min_upside_pct: float = 20.0,
-        max_candidates: int = 25,
+        max_candidates: int = 250,
         use_cache: bool = True,
         language: str = "de",
         progress_callback: Optional[Callable[[int, int, str], None]] = None,

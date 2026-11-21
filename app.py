@@ -313,14 +313,25 @@ def main() -> None:
                 use_container_width=True,
             )
 
-        # Sector Filter ('Branchen-Filter') for Monthly Deep Dive
-        selected_dd_sectors = st.multiselect(
-            i18n.t("filter_sectors_label"),
-            options=taxonomy.config.sectors,
-            default=[],
-            placeholder=i18n.t("filter_sectors_placeholder"),
-            key="deep_dive_sector_filter",
-        )
+        # Sector Filter ('Branchen-Filter') and Name/Ticker Search for Monthly Deep Dive
+        flt_col1, flt_col2 = st.columns([2.2, 1.8])
+        with flt_col1:
+            selected_dd_sectors = st.multiselect(
+                i18n.t("filter_sectors_label"),
+                options=taxonomy.config.sectors,
+                default=[],
+                placeholder=i18n.t("filter_sectors_placeholder"),
+                key="deep_dive_sector_filter",
+            )
+        with flt_col2:
+            search_query_dd = st.text_input(
+                "🔎 Aktie nach Name oder Ticker suchen (z. B. Siemens Energy oder ENR.DE)"
+                if i18n.lang == "de"
+                else "🔎 Search stock by name or ticker (e.g. Siemens Energy or ENR.DE)",
+                value="",
+                placeholder="Name oder Ticker eingeben...",
+                key="deep_dive_text_search",
+            ).strip().lower()
 
         if run_scan_clicked or "deep_dive_result" not in st.session_state:
             progress_bar = st.progress(0, text="Starte Analysten-Screening...")
@@ -343,13 +354,27 @@ def main() -> None:
 
         dd_res: DeepDiveScreeningResult = st.session_state["deep_dive_result"]
 
-        # Apply Sector Filter to Holdings and Buy Candidates
+        # Apply Sector Filter and Name/Ticker Text Search to Holdings and Buy Candidates
         if selected_dd_sectors:
             filtered_holdings = [m for m in dd_res.holdings_metrics if m.assigned_sector in selected_dd_sectors]
             filtered_candidates = [m for m in dd_res.buy_candidates if m.assigned_sector in selected_dd_sectors]
         else:
             filtered_holdings = list(dd_res.holdings_metrics)
             filtered_candidates = list(dd_res.buy_candidates)
+
+        if search_query_dd:
+            filtered_holdings = [
+                m for m in filtered_holdings
+                if search_query_dd in m.ticker.lower() or search_query_dd in m.name.lower()
+            ]
+            # Also search across the full scanned universe if the user types a specific company name/ticker!
+            universe_matches = [
+                m for m in dd_res.universe_metrics
+                if not m.is_holding and (search_query_dd in m.ticker.lower() or search_query_dd in m.name.lower())
+            ]
+            if selected_dd_sectors:
+                universe_matches = [m for m in universe_matches if m.assigned_sector in selected_dd_sectors]
+            filtered_candidates = universe_matches
 
         # Interactive Scatterplot with click-to-highlight
         st.caption(i18n.t("plot_click_hint"))
