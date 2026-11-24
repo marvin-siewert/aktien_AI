@@ -151,3 +151,17 @@ class JsonStore:
         """Save a cleaned list of custom watchlist tickers."""
         cleaned = sorted(list({str(t).strip().upper() for t in tickers if str(t).strip()}))
         self.write_json("custom_watchlist.json", {"tickers": cleaned})
+
+    # -------------------------------------------------------------------------
+    # Persistent App Settings (data/app_settings.json)
+    # -------------------------------------------------------------------------
+    def load_app_settings(self) -> Dict[str, Any]:
+        """Load persisted user preferences such as the Scalable CLI executable path."""
+        raw = self.read_json("app_settings.json", default={})
+        return raw if isinstance(raw, dict) else {}
+
+    def save_app_setting(self, key: str, value: Any) -> None:
+        """Save or update a single persistent user preference in data/app_settings.json."""
+        settings = self.load_app_settings()
+        settings[key] = value
+        self.write_json("app_settings.json", settings)

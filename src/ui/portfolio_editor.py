@@ -205,12 +205,20 @@ def render_portfolio_editor(pm: PortfolioManager, i18n: I18nManager) -> None:
             with col_imp1:
                 st.markdown(f"#### {i18n.t('import_scalable_title')}")
                 st.caption(i18n.t("import_scalable_desc"))
+                saved_cli_path = str(pm.store.load_app_settings().get("scalable_cli_path") or "").strip()
+                if not saved_cli_path:
+                    auto_exe, _ = ScalableCliAdapter(store=pm.store).resolve_executable()
+                    saved_cli_path = auto_exe or "sc"
+
                 cli_path_input = st.text_input(
                     "Pfad zur Scalable CLI (sc.exe)",
-                    value=st.session_state.get("scalable_cli_path", "sc"),
-                    placeholder=r"z. B. C:\Tools\scalable-cli\sc.exe",
+                    value=saved_cli_path,
+                    placeholder=r"z. B. C:\Tools\scalable-cli\target\release\sc.exe",
                     key="scalable_cli_path",
                 )
+                if cli_path_input.strip() and cli_path_input.strip() != saved_cli_path:
+                    pm.store.save_app_setting("scalable_cli_path", cli_path_input.strip())
+
                 fallback_chk = st.checkbox(
                     "Bei Fehler Demo-Depot laden",
                     value=False,
@@ -219,11 +227,13 @@ def render_portfolio_editor(pm: PortfolioManager, i18n: I18nManager) -> None:
                 b_sc1, b_sc2 = st.columns(2)
                 with b_sc1:
                     if st.button("🔍 Status prüfen", use_container_width=True):
-                        ok, status_msg = ScalableCliAdapter(cli_cmd=cli_path_input).check_connection_status()
+                        pm.store.save_app_setting("scalable_cli_path", cli_path_input.strip())
+                        ok, status_msg = ScalableCliAdapter(cli_cmd=cli_path_input, store=pm.store).check_connection_status()
                         st.session_state["import_feedback_msg"] = ("success" if ok else "warning", status_msg)
                         st.rerun()
                 with b_sc2:
                     if st.button(i18n.t("btn_import_scalable"), use_container_width=True, type="primary"):
+                        pm.store.save_app_setting("scalable_cli_path", cli_path_input.strip())
                         try:
                             state, msg = pm.import_from_scalable_cli(
                                 fallback_to_mock=fallback_chk,

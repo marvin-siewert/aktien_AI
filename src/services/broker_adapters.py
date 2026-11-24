@@ -62,9 +62,10 @@ class ScalableCliAdapter:
         store: Optional[JsonStore] = None,
         taxonomy: Optional[TaxonomyManager] = None,
     ) -> None:
-        self.cli_cmd = (cli_cmd or os.getenv("SCALABLE_CLI_CMD", "") or "sc").strip()
         self.store = store or JsonStore()
         self.taxonomy = taxonomy or TaxonomyManager(self.store)
+        saved_path = str(self.store.load_app_settings().get("scalable_cli_path") or "").strip()
+        self.cli_cmd = (cli_cmd or saved_path or os.getenv("SCALABLE_CLI_CMD", "") or "sc").strip()
 
     def resolve_executable(self) -> Tuple[Optional[str], Optional[str]]:
         """
