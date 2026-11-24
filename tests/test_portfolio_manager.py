@@ -98,6 +98,57 @@ def test_scalable_cli_json_parsing_and_fallback(temp_store: JsonStore, temp_taxo
     assert positions[1].country == "Deutschland"
 
 
+def test_scalable_cli_v13_real_envelope_parsing(temp_store: JsonStore, temp_taxonomy: TaxonomyManager) -> None:
+    """Verify parsing of real `scalable-cli v1.3.0` (`data.result.items` with `fifo_price` & `quote_mid_price`)."""
+    adapter = ScalableCliAdapter(store=temp_store, taxonomy=temp_taxonomy)
+    # Pre-seed ISIN cache so test runs deterministically offline
+    temp_store.set_cache("isin_ticker_US09857L1089", "BKNG")
+    temp_store.set_cache("isin_ticker_US67066G1040", "NVDA")
+
+    real_payload = json.dumps(
+        {
+            "ok": True,
+            "command": "broker.holdings",
+            "data": {
+                "result": {
+                    "crypto_items": [
+                        {"kind": "crypto", "name": "Bitcoin", "position": {"filled": 0}, "ticker": "BTC"}
+                    ],
+                    "items": [
+                        {
+                            "fifo_price": 134.95,
+                            "isin": "US09857L1089",
+                            "kind": "security",
+                            "name": "Booking Holdings",
+                            "quantity": 1,
+                            "quote_currency": "EUR",
+                            "quote_mid_price": 134.35,
+                        },
+                        {
+                            "fifo_price": 122.38,
+                            "isin": "US67066G1040",
+                            "kind": "security",
+                            "name": "NVIDIA",
+                            "quantity": 1,
+                            "quote_currency": "EUR",
+                            "quote_mid_price": 138.87,
+                        },
+                    ],
+                }
+            },
+        }
+    )
+
+    positions = adapter.parse_cli_json(real_payload)
+    assert len(positions) == 2
+    assert positions[0].ticker == "BKNG"
+    assert positions[0].buy_in_price == 134.95
+    assert positions[0].current_price == 134.35
+    assert positions[1].ticker == "NVDA"
+    assert positions[1].sector == "Halbleiter & Hardware"
+    assert positions[1].current_price == 138.87
+
+
 def test_bank_csv_import_german_format(temp_taxonomy: TaxonomyManager) -> None:
     """Verify bank CSV import with German semicolon delimiter and comma decimals."""
     csv_content = (

@@ -10,6 +10,7 @@ import streamlit as st
 
 from src.core.portfolio_manager import PortfolioManager
 from src.models.entities import Position
+from src.services.broker_adapters import ScalableCliAdapter
 from src.ui.i18n import I18nManager
 
 
@@ -190,14 +191,49 @@ def render_portfolio_editor(pm: PortfolioManager, i18n: I18nManager) -> None:
         # Sub-Tab 3: Equal-Ranking Broker & Bank Imports
         # ---------------------------------------------------------------------
         with sub_tab_import:
+            # Show persisted import feedback message after st.rerun()
+            if "import_feedback_msg" in st.session_state:
+                fb_type, fb_text = st.session_state.pop("import_feedback_msg")
+                if fb_type == "success":
+                    st.success(fb_text)
+                elif fb_type == "warning":
+                    st.warning(fb_text)
+                else:
+                    st.error(fb_text)
+
             col_imp1, col_imp2, col_imp3 = st.columns(3)
             with col_imp1:
                 st.markdown(f"#### {i18n.t('import_scalable_title')}")
                 st.caption(i18n.t("import_scalable_desc"))
-                if st.button(i18n.t("btn_import_scalable"), use_container_width=True):
-                    _, msg = pm.import_from_scalable_cli(fallback_to_mock=True)
-                    st.info(msg)
-                    st.rerun()
+                cli_path_input = st.text_input(
+                    "Pfad zur Scalable CLI (sc.exe)",
+                    value=st.session_state.get("scalable_cli_path", "sc"),
+                    placeholder=r"z. B. C:\Tools\scalable-cli\sc.exe",
+                    key="scalable_cli_path",
+                )
+                fallback_chk = st.checkbox(
+                    "Bei Fehler Demo-Depot laden",
+                    value=False,
+                    key="scalable_fallback_chk",
+                )
+                b_sc1, b_sc2 = st.columns(2)
+                with b_sc1:
+                    if st.button("🔍 Status prüfen", use_container_width=True):
+                        ok, status_msg = ScalableCliAdapter(cli_cmd=cli_path_input).check_connection_status()
+                        st.session_state["import_feedback_msg"] = ("success" if ok else "warning", status_msg)
+                        st.rerun()
+                with b_sc2:
+                    if st.button(i18n.t("btn_import_scalable"), use_container_width=True, type="primary"):
+                        try:
+                            state, msg = pm.import_from_scalable_cli(
+                                fallback_to_mock=fallback_chk,
+                                cli_cmd=cli_path_input,
+                            )
+                            fb_kind = "success" if state.source == "scalable_cli" else "warning"
+                            st.session_state["import_feedback_msg"] = (fb_kind, msg)
+                        except Exception as exc:
+                            st.session_state["import_feedback_msg"] = ("error", str(exc))
+                        st.rerun()
 
             with col_imp2:
                 st.markdown(f"#### {i18n.t('import_csv_title')}")

@@ -246,12 +246,17 @@ class PortfolioManager:
     # -------------------------------------------------------------------------
     # Direct Imports (Scalable CLI, Bank CSV, Demo)
     # -------------------------------------------------------------------------
-    def import_from_scalable_cli(self, fallback_to_mock: bool = True) -> Tuple[PortfolioState, str]:
+    def import_from_scalable_cli(
+        self,
+        fallback_to_mock: bool = True,
+        cli_cmd: Optional[str] = None,
+    ) -> Tuple[PortfolioState, str]:
         """Import positions from Scalable Capital CLI (`sc broker holdings --json`)."""
-        adapter = ScalableCliAdapter(store=self.store, taxonomy=self.taxonomy)
+        adapter = ScalableCliAdapter(cli_cmd=cli_cmd, store=self.store, taxonomy=self.taxonomy)
         state, msg = adapter.fetch_portfolio(fallback_to_mock=fallback_to_mock)
-        self.state = state
-        self.save_active()
+        if state.source == "scalable_cli" or fallback_to_mock:
+            self.state = state
+            self.save_active()
         return self.state, msg
 
     def import_from_csv(self, csv_text: str, portfolio_name: str = "Bank-CSV-Import") -> PortfolioState:
