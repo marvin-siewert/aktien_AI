@@ -81,26 +81,28 @@ class StockScreener:
         metrics.quantity = pos.quantity
         metrics.buy_in_price = pos.buy_in_price
 
-        # Convert prices to position currency (e.g. EUR) if yfinance returned USD while position has EUR prices
-        if (
-            pos.currency
-            and metrics.currency
-            and pos.currency.upper() != metrics.currency.upper()
-            and pos.current_price > 0
-            and metrics.current_price > 0
-        ):
-            fx_ratio = pos.current_price / metrics.current_price
-            metrics.current_price = round(pos.current_price, 2)
-            metrics.previous_close = round(metrics.previous_close * fx_ratio, 2)
+        # Convert Yahoo Finance metrics strictly into the position's currency (e.g. EUR from Scalable)
+        # using live FX rates so Buy-In Price, Current Price, and Analyst Target Price are 100% consistent.
+        pos_ccy = (pos.currency or "EUR").strip().upper()
+        metrics_ccy = (metrics.currency or "USD").strip().upper()
+        if pos_ccy and metrics_ccy and pos_ccy != metrics_ccy:
+            fx_rate = self.market_data.get_fx_rate(metrics_ccy, pos_ccy, use_cache=True)
+            if metrics.current_price > 0:
+                metrics.current_price = round(metrics.current_price * fx_rate, 2)
+            elif pos.current_price > 0:
+                metrics.current_price = round(pos.current_price, 2)
+            if metrics.previous_close > 0:
+                metrics.previous_close = round(metrics.previous_close * fx_rate, 2)
             if metrics.target_mean_price > 0:
-                metrics.target_mean_price = round(pos.current_price * (1.0 + (metrics.upside_pct / 100.0)), 2)
+                metrics.target_mean_price = round(metrics.target_mean_price * fx_rate, 2)
             if metrics.target_high_price > 0:
-                metrics.target_high_price = round(metrics.target_high_price * fx_ratio, 2)
+                metrics.target_high_price = round(metrics.target_high_price * fx_rate, 2)
             if metrics.target_low_price > 0:
-                metrics.target_low_price = round(metrics.target_low_price * fx_ratio, 2)
-            metrics.currency = pos.currency.upper()
+                metrics.target_low_price = round(metrics.target_low_price * fx_rate, 2)
+            metrics.currency = pos_ccy
         elif pos.current_price > 0 and metrics.current_price <= 0:
             metrics.current_price = round(pos.current_price, 2)
+            metrics.currency = pos_ccy
 
         if metrics.buy_in_price > 0 and metrics.current_price > 0:
             metrics.gain_loss_abs = round((metrics.current_price - metrics.buy_in_price) * metrics.quantity, 2)

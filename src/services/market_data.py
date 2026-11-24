@@ -127,9 +127,24 @@ FALLBACK_STOCK_DATA: Dict[str, Dict[str, object]] = {
 
 class MarketDataService:
     """
-    Service for fetching stock metrics and analyst consensus from Yahoo Finance
+    Service for fetching stock metrics, FX rates, and analyst consensus from Yahoo Finance
     with local file caching and taxonomy classification.
     """
+
+    # Fallback FX rates to EUR / USD if offline
+    FALLBACK_FX_TO_EUR: Dict[str, float] = {
+        "EUR": 1.0,
+        "USD": 0.92,
+        "GBP": 1.18,
+        "CHF": 1.06,
+        "DKK": 0.134,
+        "SEK": 0.087,
+        "NOK": 0.085,
+        "JPY": 0.0061,
+        "CAD": 0.66,
+        "AUD": 0.60,
+        "HKD": 0.118,
+    }
 
     def __init__(
         self,
@@ -140,6 +155,71 @@ class MarketDataService:
         self.store = store or JsonStore()
         self.taxonomy = taxonomy_manager or TaxonomyManager(self.store)
         self.cache_ttl_seconds = cache_ttl_seconds
+
+    def get_fx_rate(
+        self,
+        from_currency: str,
+        to_currency: str,
+        use_cache: bool = True,
+    ) -> float:
+        """
+        Return live foreign-exchange conversion multiplier from `from_currency` to `to_currency`
+        (e.g. USD -> EUR ~= 0.91). Handles British pence ('GBp'/'GBX' = 0.01 GBP).
+        Caches FX rates locally for 4 hours.
+        """
+        raw_from = (from_currency or "EUR").strip()
+        raw_to = (to_currency or "EUR").strip()
+
+        # Handle British pence (GBp / GBX)
+        pence_scale = 1.0
+        if raw_from in ("GBp", "GBX"):
+            pence_scale = 0.01
+            raw_from = "GBP"
+        if raw_to in ("GBp", "GBX"):
+            pence_scale *= 100.0
+            raw_to = "GBP"
+
+        src = raw_from.upper()
+        dst = raw_to.upper()
+        if src == dst:
+            return pence_scale
+
+        cache_key = f"fx_{src}_{dst}"
+        if use_cache:
+            cached = self.store.get_cache(cache_key, ttl_seconds=14400)  # 4h FX cache
+            if isinstance(cached, (int, float)) and float(cached) > 0:
+                return float(cached) * pence_scale
+
+        # Try direct pair (e.g. USDEUR=X) via yfinance
+        try:
+            pair_symbol = f"{src}{dst}=X"
+            hist = yf.Ticker(pair_symbol).history(period="5d")
+            if isinstance(hist, pd.DataFrame) and not hist.empty and "Close" in hist.columns:
+                rate = float(hist["Close"].dropna().iloc[-1])
+                if rate > 0:
+                    self.store.set_cache(cache_key, rate)
+                    return rate * pence_scale
+        except Exception as exc:
+            logger.debug("Direct FX lookup failed for %s->%s: %s", src, dst, exc)
+
+        # Fallback via inverse pair (e.g. EURUSD=X -> 1 / rate)
+        try:
+            inv_symbol = f"{dst}{src}=X"
+            hist_inv = yf.Ticker(inv_symbol).history(period="5d")
+            if isinstance(hist_inv, pd.DataFrame) and not hist_inv.empty and "Close" in hist_inv.columns:
+                inv_rate = float(hist_inv["Close"].dropna().iloc[-1])
+                if inv_rate > 0:
+                    rate = 1.0 / inv_rate
+                    self.store.set_cache(cache_key, rate)
+                    return rate * pence_scale
+        except Exception as exc:
+            logger.debug("Inverse FX lookup failed for %s->%s: %s", src, dst, exc)
+
+        # Deterministic offline fallback via EUR cross-rates
+        src_to_eur = self.FALLBACK_FX_TO_EUR.get(src, 1.0)
+        dst_to_eur = self.FALLBACK_FX_TO_EUR.get(dst, 1.0)
+        fallback_rate = src_to_eur / dst_to_eur if dst_to_eur > 0 else 1.0
+        return fallback_rate * pence_scale
 
     def get_universe_tickers(self, mode: str = "quick", include_custom: bool = True) -> List[str]:
         """
@@ -198,10 +278,12 @@ class MarketDataService:
         ticker: str,
         use_cache: bool = True,
         is_holding: bool = False,
+        target_currency: Optional[str] = None,
     ) -> StockMetrics:
         """
         Fetch market price, daily change, analyst target price, analyst count, and metadata
-        for a single ticker. Applies the active TaxonomyManager classification.
+        for a single ticker. Applies the active TaxonomyManager classification and converts
+        all prices into `target_currency` (e.g. 'EUR') via live FX rates if requested.
         """
         clean_ticker = ticker.strip().upper()
         cache_key = f"yf_metrics_{clean_ticker}"
@@ -217,11 +299,24 @@ class MarketDataService:
             if info and float(info.get("current_price", 0) or 0) > 0:
                 self.store.set_cache(cache_key, info)
 
+        raw_currency = str(info.get("currency", "EUR" if clean_ticker.endswith(".DE") else "USD") or "USD")
         current_price = float(info.get("current_price", 0.0) or 0.0)
         previous_close = float(info.get("previous_close", current_price) or current_price)
         target_mean = float(info.get("target_mean_price", 0.0) or 0.0)
         target_high = float(info.get("target_high_price", target_mean) or target_mean)
         target_low = float(info.get("target_low_price", target_mean) or target_mean)
+
+        final_currency = raw_currency.upper()
+        if target_currency and target_currency.strip():
+            desired_ccy = target_currency.strip().upper()
+            if raw_currency.upper() != desired_ccy:
+                fx = self.get_fx_rate(raw_currency, desired_ccy, use_cache=use_cache)
+                current_price *= fx
+                previous_close *= fx
+                target_mean *= fx
+                target_high *= fx
+                target_low *= fx
+                final_currency = desired_ccy
 
         daily_change_pct = 0.0
         if previous_close > 0 and current_price > 0:
@@ -255,7 +350,7 @@ class MarketDataService:
             recommendation_key=str(info.get("recommendation_key", "none") or "none").lower(),
             number_of_analyst_opinions=int(info.get("number_of_analyst_opinions", 0) or 0),
             market_cap=float(info.get("market_cap", 0.0) or 0.0),
-            currency=str(info.get("currency", "EUR" if clean_ticker.endswith(".DE") else "USD") or "USD"),
+            currency=final_currency,
             raw_sector=raw_sector,
             raw_industry=raw_industry,
             raw_country=raw_country,
@@ -348,66 +443,86 @@ class MarketDataService:
         ticker: str,
         period: str = "1y",
         use_cache: bool = True,
+        target_currency: Optional[str] = None,
     ) -> pd.DataFrame:
         """
         Fetch historical OHLCV price series for a ticker over `period`
         (supported: '1mo', '3mo', '6mo', '1y', '3y', '5y', 'max').
-        Returns a DataFrame with columns ['Date', 'Close', 'High', 'Low', 'Volume'].
+        If `target_currency` is specified (e.g. 'EUR') and differs from the ticker's native
+        Yahoo Finance quote currency (e.g. 'USD'), converts Close/High/Low using the live FX rate.
         """
         clean_ticker = ticker.strip().upper()
         valid_periods = {"1mo", "3mo", "6mo", "1y", "3y", "5y", "max"}
         norm_period = period.lower().strip() if period.lower().strip() in valid_periods else "1y"
         cache_key = f"yf_hist_{clean_ticker}_{norm_period}"
 
+        df_raw: Optional[pd.DataFrame] = None
         if use_cache:
             cached = self.store.get_cache(cache_key, ttl_seconds=14400)  # 4h cache for price history
             if isinstance(cached, list) and len(cached) > 2:
-                return pd.DataFrame(cached)
+                df_raw = pd.DataFrame(cached)
 
-        try:
-            interval = "1d" if norm_period in ("1mo", "3mo", "6mo", "1y") else "1wk"
-            hist = yf.Ticker(clean_ticker).history(period=norm_period, interval=interval)
-            if isinstance(hist, pd.DataFrame) and not hist.empty and "Close" in hist.columns:
-                hist = hist.reset_index()
-                date_col = "Date" if "Date" in hist.columns else hist.columns[0]
-                records = []
-                for _, row in hist.iterrows():
-                    dt_val = pd.to_datetime(row[date_col]).strftime("%Y-%m-%d")
-                    close_val = float(row.get("Close", 0.0) or 0.0)
-                    if close_val > 0:
-                        records.append(
-                            {
-                                "Date": dt_val,
-                                "Close": round(close_val, 2),
-                                "High": round(float(row.get("High", close_val) or close_val), 2),
-                                "Low": round(float(row.get("Low", close_val) or close_val), 2),
-                                "Volume": int(row.get("Volume", 0) or 0),
-                            }
-                        )
-                if len(records) > 2:
-                    self.store.set_cache(cache_key, records)
-                    return pd.DataFrame(records)
-        except Exception as exc:
-            logger.debug("yfinance history fetch failed for %s (%s): %s", clean_ticker, norm_period, exc)
+        if df_raw is None:
+            try:
+                interval = "1d" if norm_period in ("1mo", "3mo", "6mo", "1y") else "1wk"
+                hist = yf.Ticker(clean_ticker).history(period=norm_period, interval=interval)
+                if isinstance(hist, pd.DataFrame) and not hist.empty and "Close" in hist.columns:
+                    hist = hist.reset_index()
+                    date_col = "Date" if "Date" in hist.columns else hist.columns[0]
+                    records = []
+                    for _, row in hist.iterrows():
+                        dt_val = pd.to_datetime(row[date_col]).strftime("%Y-%m-%d")
+                        close_val = float(row.get("Close", 0.0) or 0.0)
+                        if close_val > 0:
+                            records.append(
+                                {
+                                    "Date": dt_val,
+                                    "Close": round(close_val, 2),
+                                    "High": round(float(row.get("High", close_val) or close_val), 2),
+                                    "Low": round(float(row.get("Low", close_val) or close_val), 2),
+                                    "Volume": int(row.get("Volume", 0) or 0),
+                                }
+                            )
+                    if len(records) > 2:
+                        self.store.set_cache(cache_key, records)
+                        df_raw = pd.DataFrame(records)
+            except Exception as exc:
+                logger.debug("yfinance history fetch failed for %s (%s): %s", clean_ticker, norm_period, exc)
 
-        # Deterministic synthetic fallback series if offline so charts always render cleanly
-        base_price = float(FALLBACK_STOCK_DATA.get(clean_ticker, {}).get("current_price", 100.0) or 100.0)
-        days_map = {"1mo": 22, "3mo": 65, "6mo": 130, "1y": 252, "3y": 156, "5y": 260, "max": 300}
-        n_points = days_map.get(norm_period, 120)
-        freq = "B" if norm_period in ("1mo", "3mo", "6mo", "1y") else "W"
-        dates = pd.date_range(end=pd.Timestamp.today(), periods=n_points, freq=freq)
-        fallback_rows = []
-        for idx, d in enumerate(dates):
-            factor = 0.85 + (0.15 * (idx / max(1, n_points - 1)))
-            p_val = round(base_price * factor, 2)
-            fallback_rows.append(
-                {
-                    "Date": d.strftime("%Y-%m-%d"),
-                    "Close": p_val,
-                    "High": round(p_val * 1.015, 2),
-                    "Low": round(p_val * 0.985, 2),
-                    "Volume": 1000000,
-                }
-            )
-        return pd.DataFrame(fallback_rows)
+        if df_raw is None:
+            # Deterministic synthetic fallback series if offline so charts always render cleanly
+            base_price = float(FALLBACK_STOCK_DATA.get(clean_ticker, {}).get("current_price", 100.0) or 100.0)
+            days_map = {"1mo": 22, "3mo": 65, "6mo": 130, "1y": 252, "3y": 156, "5y": 260, "max": 300}
+            n_points = days_map.get(norm_period, 120)
+            freq = "B" if norm_period in ("1mo", "3mo", "6mo", "1y") else "W"
+            dates = pd.date_range(end=pd.Timestamp.today(), periods=n_points, freq=freq)
+            fallback_rows = []
+            for idx, d in enumerate(dates):
+                factor = 0.85 + (0.15 * (idx / max(1, n_points - 1)))
+                p_val = round(base_price * factor, 2)
+                fallback_rows.append(
+                    {
+                        "Date": d.strftime("%Y-%m-%d"),
+                        "Close": p_val,
+                        "High": round(p_val * 1.015, 2),
+                        "Low": round(p_val * 0.985, 2),
+                        "Volume": 1000000,
+                    }
+                )
+            df_raw = pd.DataFrame(fallback_rows)
+
+        # Convert historical price series to `target_currency` if different from ticker's native Yahoo currency
+        if target_currency and target_currency.strip() and not df_raw.empty:
+            desired_ccy = target_currency.strip().upper()
+            native_metrics = self.fetch_stock_metrics(clean_ticker, use_cache=True)
+            native_ccy = (native_metrics.currency or "USD").strip().upper()
+            if native_ccy != desired_ccy:
+                fx = self.get_fx_rate(native_ccy, desired_ccy, use_cache=use_cache)
+                df_converted = df_raw.copy()
+                for col in ("Close", "High", "Low"):
+                    if col in df_converted.columns:
+                        df_converted[col] = (df_converted[col].astype(float) * fx).round(2)
+                return df_converted
+
+        return df_raw
 

@@ -179,11 +179,21 @@ class PortfolioManager:
         self.save_active()
 
     def refresh_live_prices(self, use_cache: bool = False) -> None:
-        """Refresh current market prices for all holdings via MarketDataService."""
+        """
+        Refresh current market prices for all holdings via MarketDataService,
+        strictly converting each live quote into the holding's configured currency (e.g. EUR from Scalable).
+        """
         for pos in self.state.positions:
-            metrics = self.market_data.fetch_stock_metrics(pos.ticker, use_cache=use_cache, is_holding=True)
+            target_ccy = (pos.currency or "EUR").strip().upper()
+            metrics = self.market_data.fetch_stock_metrics(
+                pos.ticker,
+                use_cache=use_cache,
+                is_holding=True,
+                target_currency=target_ccy,
+            )
             if metrics.current_price > 0:
                 pos.current_price = metrics.current_price
+                pos.currency = target_ccy
             if not pos.name or pos.name == pos.ticker:
                 pos.name = metrics.name
         self.save_active()

@@ -108,7 +108,12 @@ def render_ai_evaluation_card(
             key=f"tf_sel_{key_prefix}_{metrics.ticker}",
         )
         yf_period = TIMEFRAME_OPTIONS[tf_label]
-        hist_df = market_data.fetch_price_history(metrics.ticker, period=yf_period, use_cache=True)
+        hist_df = market_data.fetch_price_history(
+            metrics.ticker,
+            period=yf_period,
+            use_cache=True,
+            target_currency=metrics.currency,
+        )
         fig_hist = build_stock_price_history_chart(
             history_df=hist_df,
             ticker=metrics.ticker,

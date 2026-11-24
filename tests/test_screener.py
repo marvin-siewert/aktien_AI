@@ -13,9 +13,12 @@ from src.ui.charts import build_portfolio_target_price_chart, build_stock_price_
 from src.ui.theme_manager import get_theme
 
 
-def test_holding_enrichment_with_buy_in_and_target_chart() -> None:
-    """Verify buy-in price, gain/loss calculation, currency conversion, and 3-bar target price chart."""
-    screener = StockScreener()
+def test_holding_enrichment_with_buy_in_and_target_chart(temp_store: JsonStore) -> None:
+    """Verify buy-in price, live FX conversion (USD -> EUR), gain/loss, and 3-bar target price chart."""
+    # Seed deterministic FX rate USD -> EUR = 0.90 in cache
+    temp_store.set_cache("fx_USD_EUR", 0.90)
+    mds = MarketDataService(store=temp_store)
+    screener = StockScreener(market_data=mds)
     portfolio = PortfolioState(
         portfolio_name="Scalable Live",
         positions=[
@@ -23,8 +26,8 @@ def test_holding_enrichment_with_buy_in_and_target_chart() -> None:
                 ticker="NVDA",
                 name="NVIDIA",
                 quantity=2.0,
-                buy_in_price=122.38,
-                current_price=139.24,
+                buy_in_price=120.00,
+                current_price=135.00,
                 currency="EUR",
             )
         ],
@@ -40,10 +43,11 @@ def test_holding_enrichment_with_buy_in_and_target_chart() -> None:
     )
     enriched = screener.enrich_holding_metrics_with_position(metrics, portfolio)
     assert enriched.currency == "EUR"
-    assert enriched.buy_in_price == 122.38
-    assert enriched.current_price == 139.24
-    assert enriched.gain_loss_abs == round((139.24 - 122.38) * 2.0, 2)
-    assert enriched.gain_loss_pct > 13.0
+    assert enriched.buy_in_price == 120.00
+    assert enriched.current_price == 135.00  # 150.0 USD * 0.90
+    assert enriched.target_mean_price == 162.00  # 180.0 USD * 0.90
+    assert enriched.gain_loss_abs == 30.00  # (135 - 120) * 2
+    assert enriched.gain_loss_pct == 12.50
 
     fig = build_portfolio_target_price_chart([enriched], get_theme("clean_blue"))
     # Must contain 3 bar traces: Kaufpreis, Aktueller Kurs, Analysten-Kursziel
