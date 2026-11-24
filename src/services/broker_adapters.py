@@ -120,6 +120,14 @@ class ScalableCliAdapter:
             env["HOME"] = env.get("USERPROFILE") or str(Path.home())
         return env
 
+    def build_login_command(self) -> str:
+        """Build a copy-pasteable PowerShell login command for the configured Scalable CLI path."""
+        cmd, _ = self._build_cmd(["login", "--local-read-only"])
+        if cmd and cmd[0].lower() == "wsl":
+            return " ".join(cmd)
+        exe = cmd[0] if cmd else self.cli_cmd
+        return f'& "{exe}" login --local-read-only'
+
     def check_connection_status(self) -> Tuple[bool, str]:
         """Run `sc whoami` in read-only mode to verify CLI installation and active login session."""
         cmd, err = self._build_cmd(["whoami"])
@@ -137,9 +145,30 @@ class ScalableCliAdapter:
             out = (proc.stdout or proc.stderr or "").strip()
             if proc.returncode == 0 and out:
                 return True, f"Verbunden ({' '.join(cmd[:-1])}): {out}"
-            return False, f"Nicht eingeloggt. Bitte im Terminal '{' '.join(cmd[:-1])} login --local-read-only' ausführen. ({out})"
+            return False, f"Nicht eingeloggt. Bitte im Terminal anmelden. ({out})"
         except Exception as exc:
             return False, f"CLI-Prüfung fehlgeschlagen: {exc}"
+
+    def logout(self) -> Tuple[bool, str]:
+        """Execute `sc logout` to remove the saved local Scalable session."""
+        cmd, err = self._build_cmd(["logout"])
+        if err or not cmd:
+            return False, err or "Scalable CLI nicht gefunden."
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+                env=self._subprocess_env(),
+            )
+            out = (proc.stdout or proc.stderr or "").strip()
+            if proc.returncode == 0:
+                return True, f"Scalable-Session sicher beendet (`logout`). {out}".strip()
+            return False, f"Abmeldung fehlgeschlagen: {out}"
+        except Exception as exc:
+            return False, f"Abmeldung fehlgeschlagen: {exc}"
 
     def fetch_portfolio(self, fallback_to_mock: bool = True) -> Tuple[PortfolioState, str]:
         """

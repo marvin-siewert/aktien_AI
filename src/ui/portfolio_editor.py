@@ -224,26 +224,51 @@ def render_portfolio_editor(pm: PortfolioManager, i18n: I18nManager) -> None:
                     value=False,
                     key="scalable_fallback_chk",
                 )
-                b_sc1, b_sc2 = st.columns(2)
+                b_sc1, b_sc2, b_sc3 = st.columns(3)
                 with b_sc1:
-                    if st.button("🔍 Status prüfen", use_container_width=True):
+                    if st.button("🔍 Status", use_container_width=True):
                         pm.store.save_app_setting("scalable_cli_path", cli_path_input.strip())
                         ok, status_msg = ScalableCliAdapter(cli_cmd=cli_path_input, store=pm.store).check_connection_status()
                         st.session_state["import_feedback_msg"] = ("success" if ok else "warning", status_msg)
+                        st.session_state["scalable_needs_login"] = not ok
                         st.rerun()
                 with b_sc2:
-                    if st.button(i18n.t("btn_import_scalable"), use_container_width=True, type="primary"):
+                    if st.button("🔗 Importieren", use_container_width=True, type="primary"):
                         pm.store.save_app_setting("scalable_cli_path", cli_path_input.strip())
                         try:
                             state, msg = pm.import_from_scalable_cli(
                                 fallback_to_mock=fallback_chk,
                                 cli_cmd=cli_path_input,
                             )
-                            fb_kind = "success" if state.source == "scalable_cli" else "warning"
+                            is_live = state.source == "scalable_cli"
+                            fb_kind = "success" if is_live else "warning"
                             st.session_state["import_feedback_msg"] = (fb_kind, msg)
+                            st.session_state["scalable_needs_login"] = not is_live
                         except Exception as exc:
                             st.session_state["import_feedback_msg"] = ("error", str(exc))
+                            st.session_state["scalable_needs_login"] = True
                         st.rerun()
+                with b_sc3:
+                    if st.button("🚪 Abmelden", use_container_width=True):
+                        ok_out, out_msg = ScalableCliAdapter(cli_cmd=cli_path_input, store=pm.store).logout()
+                        st.session_state["import_feedback_msg"] = ("success" if ok_out else "warning", out_msg)
+                        st.session_state["scalable_needs_login"] = ok_out
+                        st.rerun()
+
+                login_cmd_str = ScalableCliAdapter(cli_cmd=cli_path_input, store=pm.store).build_login_command()
+                if st.session_state.get("scalable_needs_login", False):
+                    st.info(
+                        "🔐 **Anmeldung erforderlich:** Kopiere diesen Befehl (rechts auf das Kopier-Symbol klicken), "
+                        "füge ihn in **PowerShell** ein und bestätige den Login im Browser per 2FA:"
+                    )
+                    st.code(login_cmd_str, language="powershell")
+                else:
+                    with st.expander("🔑 Terminal-Login-Befehl zum Kopieren"):
+                        st.caption(
+                            "Falls deine Scalable-Session abgelaufen ist, diesen Befehl in PowerShell ausführen "
+                            "(öffnet den sicheren Browser-Login mit 2FA im Read-Only-Modus):"
+                        )
+                        st.code(login_cmd_str, language="powershell")
 
             with col_imp2:
                 st.markdown(f"#### {i18n.t('import_csv_title')}")

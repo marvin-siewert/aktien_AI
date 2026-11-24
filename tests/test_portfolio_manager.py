@@ -149,6 +149,26 @@ def test_scalable_cli_v13_real_envelope_parsing(temp_store: JsonStore, temp_taxo
     assert positions[1].current_price == 138.87
 
 
+def test_scalable_cli_login_command_and_logout(temp_store: JsonStore, temp_taxonomy: TaxonomyManager, mocker) -> None:
+    """Verify PowerShell copy-paste login command generation and `sc logout` execution."""
+    adapter = ScalableCliAdapter(
+        cli_cmd=r"C:\Tools\scalable-cli\target\release\sc.exe",
+        store=temp_store,
+        taxonomy=temp_taxonomy,
+    )
+    login_cmd = adapter.build_login_command()
+    assert "login --local-read-only" in login_cmd
+    assert "sc.exe" in login_cmd
+
+    mock_run = mocker.patch("src.services.broker_adapters.subprocess.run")
+    mock_run.return_value.returncode = 0
+    mock_run.return_value.stdout = "Logged out"
+    mock_run.return_value.stderr = ""
+    ok, msg = adapter.logout()
+    assert ok is True
+    assert "beendet" in msg
+
+
 def test_bank_csv_import_german_format(temp_taxonomy: TaxonomyManager) -> None:
     """Verify bank CSV import with German semicolon delimiter and comma decimals."""
     csv_content = (
