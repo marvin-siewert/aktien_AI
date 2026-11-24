@@ -54,8 +54,22 @@ THEMES: Dict[str, ThemeConfig] = {
         font_family="'Inter', 'Segoe UI', sans-serif",
         plotly_template="plotly_white",
         color_sequence=[
-            "#0052CC", "#2684FF", "#00A3BF", "#36B37E", "#6554C0",
-            "#00B8D9", "#0747A6", "#4C9AFF", "#57D9A3", "#8777D9",
+            "#0052CC",  # 1. Royal Blue
+            "#E65100",  # 2. Deep Orange
+            "#2E7D32",  # 3. Forest Green
+            "#8E24AA",  # 4. Rich Purple
+            "#C62828",  # 5. Crimson Red
+            "#00838F",  # 6. Dark Cyan / Teal
+            "#F9A825",  # 7. Golden Amber
+            "#AD1457",  # 8. Magenta / Berry
+            "#558B2F",  # 9. Olive / Lime Green
+            "#283593",  # 10. Indigo Navy
+            "#6D4C41",  # 11. Warm Brown / Terracotta
+            "#00ACC1",  # 12. Bright Turquoise
+            "#546E7A",  # 13. Slate Grey (Sonstige)
+            "#D84315",  # 14. Rust Coral
+            "#4527A0",  # 15. Deep Violet
+            "#00695C",  # 16. Pine Teal
         ],
         positive_color="#15803D",
         warning_color="#B45309",
@@ -77,8 +91,22 @@ THEMES: Dict[str, ThemeConfig] = {
         font_family="'Comic Sans MS', 'Quicksand', 'Trebuchet MS', cursive, sans-serif",
         plotly_template="plotly_white",
         color_sequence=[
-            "#FF3399", "#B565F7", "#FF80BF", "#66D9E8", "#FFB366",
-            "#FF66B2", "#9966FF", "#7AE582", "#FF99CC", "#C084FC",
+            "#FF1493",  # 1. Deep Pink
+            "#7C3AED",  # 2. Vibrant Violet
+            "#0EA5E9",  # 3. Sky Cyan
+            "#10B981",  # 4. Mint Emerald
+            "#F59E0B",  # 5. Sunny Amber
+            "#EF4444",  # 6. Coral Red
+            "#3B82F6",  # 7. Electric Blue
+            "#84CC16",  # 8. Bright Lime
+            "#D946EF",  # 9. Orchid Magenta
+            "#14B8A6",  # 10. Aqua Teal
+            "#F97316",  # 11. Tangerine Orange
+            "#6366F1",  # 12. Periwinkle Indigo
+            "#8B5CF6",  # 13. Lavender Purple
+            "#EC4899",  # 14. Rose Pink
+            "#06B6D4",  # 15. Turquoise
+            "#64748B",  # 16. Cool Slate
         ],
         positive_color="#10B981",
         warning_color="#F59E0B",

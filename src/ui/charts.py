@@ -9,15 +9,29 @@ to support interactive click-selection (`on_select="rerun"`).
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
 from src.core.risk_manager import PortfolioRiskReport
+from src.core.taxonomy_manager import DEFAULT_SECTORS
 from src.models.entities import PortfolioState, StockMetrics
 from src.ui.theme_manager import ThemeConfig
+
+
+def build_sector_color_map(sectors: List[str], theme: ThemeConfig) -> Dict[str, str]:
+    """
+    Build a deterministic high-contrast color mapping for every sector so each sector
+    has a clearly distinguishable color across Sunburst, Bar, and Scatter charts.
+    """
+    palette = theme.color_sequence
+    all_known = list(DEFAULT_SECTORS)
+    for s in sectors:
+        if s and s not in all_known:
+            all_known.append(s)
+    return {sec: palette[idx % len(palette)] for idx, sec in enumerate(all_known)}
 
 
 def _apply_common_layout(fig: go.Figure, theme: ThemeConfig, title: str) -> go.Figure:
@@ -58,12 +72,14 @@ def build_diversification_sunburst(
             }
         )
     df = pd.DataFrame(rows)
+    sector_color_map = build_sector_color_map(df["sector"].unique().tolist(), theme)
 
     fig = px.sunburst(
         df,
         path=["sector", "country", "ticker"],
         values="market_value",
         color="sector",
+        color_discrete_map=sector_color_map,
         color_discrete_sequence=theme.color_sequence,
     )
     fig.update_traces(textinfo="label+percent entry")
@@ -85,11 +101,18 @@ def build_sector_allocation_bar(
 
     categories = [s.category for s in risk_report.sector_slices]
     weights = [s.weight_pct for s in risk_report.sector_slices]
-    counts = [f"{s.weight_pct:.1f}% ({s.stock_count} Aktien)" for s in risk_report.sector_slices]
-    colors = [
-        theme.danger_color if (s.exceeds_weight_cap or s.exceeds_count_cap) else theme.primary_color
+    counts = [
+        f"{s.weight_pct:.1f}% ({s.stock_count} Aktie{'n' if s.stock_count != 1 else ''})"
+        + (" ⚠️" if (s.exceeds_weight_cap or s.exceeds_count_cap) else "")
         for s in risk_report.sector_slices
     ]
+    sector_color_map = build_sector_color_map(categories, theme)
+    colors = [sector_color_map.get(s.category, theme.primary_color) for s in risk_report.sector_slices]
+    line_colors = [
+        theme.danger_color if (s.exceeds_weight_cap or s.exceeds_count_cap) else "rgba(0,0,0,0)"
+        for s in risk_report.sector_slices
+    ]
+    line_widths = [3 if (s.exceeds_weight_cap or s.exceeds_count_cap) else 0 for s in risk_report.sector_slices]
 
     fig.add_trace(
         go.Bar(
@@ -97,7 +120,7 @@ def build_sector_allocation_bar(
             y=weights,
             text=counts,
             textposition="outside",
-            marker_color=colors,
+            marker=dict(color=colors, line=dict(color=line_colors, width=line_widths)),
             name="Ist-Gewicht (%)",
         )
     )
@@ -181,6 +204,7 @@ def build_upside_coverage_scatter(
             }
         )
     df = pd.DataFrame(rows)
+    sector_color_map = build_sector_color_map(df["Branche"].unique().tolist(), theme)
 
     fig = px.scatter(
         df,
@@ -194,6 +218,7 @@ def build_upside_coverage_scatter(
         hover_data=["Ticker", "Branche", "Land", "Konsens", "Aktueller_Kurs", "Kursziel"],
         custom_data=["Ticker"],
         text="Ticker",
+        color_discrete_map=sector_color_map,
         color_discrete_sequence=theme.color_sequence,
         size_max=42,
     )
