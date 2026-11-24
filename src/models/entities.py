@@ -70,6 +70,25 @@ class PortfolioState(BaseModel):
         """Calculate sum of market values across all positions."""
         return round(sum(pos.market_value for pos in self.positions), 2)
 
+    @property
+    def total_cost_basis(self) -> float:
+        """Calculate sum of historical buy-in cost basis across all positions."""
+        return round(sum(pos.cost_basis for pos in self.positions), 2)
+
+    @property
+    def total_gain_loss_abs(self) -> float:
+        """Calculate total unrealized gain/loss across all positions with a valid buy-in price."""
+        return round(sum(pos.gain_loss_abs for pos in self.positions), 2)
+
+    @property
+    def total_gain_loss_pct(self) -> float:
+        """Calculate percentage unrealized gain/loss across the entire portfolio."""
+        cost = sum(pos.cost_basis for pos in self.positions if pos.buy_in_price > 0)
+        val = sum(pos.market_value for pos in self.positions if pos.buy_in_price > 0)
+        if cost <= 0:
+            return 0.0
+        return round(((val - cost) / cost) * 100.0, 2)
+
 
 class TaxonomyConfig(BaseModel):
     """Configuration for customizable sector and country lists, mappings, and ticker overrides."""
@@ -117,6 +136,10 @@ class StockMetrics(BaseModel):
     assigned_sector: str = "Sonstige / Unklassifiziert"
     assigned_country: str = "Sonstige / Global"
     is_holding: bool = False
+    buy_in_price: float = 0.0
+    quantity: float = 0.0
+    gain_loss_abs: float = 0.0
+    gain_loss_pct: float = 0.0
     passes_quantitative_filter: bool = False
     cluster_risk_warning: str = ""
 

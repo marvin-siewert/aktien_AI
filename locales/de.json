@@ -57,7 +57,7 @@
   "chart_sunburst_title": "Diversifikation: Branchen- & Länder-Verteilung (Sunburst)",
   "chart_sector_bar_title": "Branchen-Gewichtung vs. Maximal-Limit",
   "chart_country_bar_title": "Länder-Gewichtung im Depot",
-  "chart_target_bar_title": "Bestandsaktien: Aktueller Kurs vs. Analysten-Kursziel",
+  "chart_target_bar_title": "Bestandsaktien: Kaufpreis (Einstand) vs. Aktueller Kurs vs. Analysten-Kursziel (inkl. Gewinn/Verlust)",
 
   "deep_dive_header": "Monthly Deep Dive: Vorurteilsfreie Neubewertung & Kaufsignale",
   "deep_dive_desc": "Ignoriert historische Einstandskurse (keine Sunk Cost Fallacy) und kombiniert Analysten-Konsens mit tiefer 30-Tage-News- & Risiko-Analyse (Finanzen, Skandale/Spionage, Politik/Wahlen/Restriktionen).",

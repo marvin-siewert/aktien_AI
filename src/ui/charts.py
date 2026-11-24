@@ -245,41 +245,70 @@ def build_upside_coverage_scatter(
 def build_portfolio_target_price_chart(
     holdings_metrics: List[StockMetrics],
     theme: ThemeConfig,
-    title: str = "Bestandsaktien: Aktueller Kurs vs. Analysten-Kursziel",
+    title: str = "Bestandsaktien: Kaufpreis vs. Aktueller Kurs vs. Analysten-Kursziel",
 ) -> go.Figure:
     """
-    Chart 3: Horizontal bar chart of all existing holdings comparing current price vs. mean analyst
-    target price, highlighting stocks that are near or above their target price (< 5% upside left).
+    Chart 3: Horizontal bar chart of all existing holdings comparing:
+    1. Historical Buy-In Price (Kaufpreis / Einstand)
+    2. Current Market Price (inkl. Gewinn/Verlust in % und €)
+    3. Mean Analyst Target Price (inkl. verbleibendem Upside in %)
     """
     fig = go.Figure()
     if not holdings_metrics:
         return _apply_common_layout(fig, theme, title)
 
     sorted_m = sorted(holdings_metrics, key=lambda x: x.upside_pct)
-    labels = [
-        f"{m.ticker} ({'⚠️ Ziel erreicht / Reallokation' if m.upside_pct < 5.0 else f'+{m.upside_pct:.1f}% Upside'})"
-        for m in sorted_m
-    ]
+    labels = []
+    for m in sorted_m:
+        gv_str = f"G/V: {m.gain_loss_pct:+.1f}% ({m.gain_loss_abs:+.2f} {m.currency})" if m.buy_in_price > 0 else "Kein Kaufpreis"
+        up_str = "⚠️ Ziel erreicht" if (m.target_mean_price > 0 and m.upside_pct < 5.0) else f"Upside: {m.upside_pct:+.1f}%"
+        labels.append(f"{m.name[:18]} ({m.ticker}) | {gv_str} | {up_str}")
+
     tickers_custom = [[m.ticker] for m in sorted_m]
+    buy_in_prices = [m.buy_in_price for m in sorted_m]
     current_prices = [m.current_price for m in sorted_m]
     target_prices = [m.target_mean_price for m in sorted_m]
+
     target_colors = [
-        theme.warning_color if m.upside_pct < 5.0 else theme.positive_color
+        theme.warning_color if (m.target_mean_price > 0 and m.upside_pct < 5.0) else theme.positive_color
         for m in sorted_m
     ]
 
+    # Trace 1: Buy-In Price (Kaufpreis / Einstand)
+    if any(b > 0 for b in buy_in_prices):
+        fig.add_trace(
+            go.Bar(
+                y=labels,
+                x=buy_in_prices,
+                customdata=tickers_custom,
+                orientation="h",
+                name="Kaufpreis (Einstand)",
+                marker_color="#64748B",
+                text=[f"Kauf: {b:.2f} {m.currency}" if b > 0 else "" for b, m in zip(buy_in_prices, sorted_m)],
+                textposition="inside",
+            )
+        )
+
+    # Trace 2: Current Price (Aktueller Kurs + G/V)
     fig.add_trace(
         go.Bar(
             y=labels,
             x=current_prices,
             customdata=tickers_custom,
             orientation="h",
-            name="Aktueller Kurs",
+            name="Aktueller Kurs (inkl. G/V)",
             marker_color=theme.primary_color,
-            text=[f"{p:.2f}" for p in current_prices],
+            text=[
+                f"Aktuell: {m.current_price:.2f} {m.currency} ({m.gain_loss_pct:+.1f}%)"
+                if m.buy_in_price > 0
+                else f"Aktuell: {m.current_price:.2f} {m.currency}"
+                for m in sorted_m
+            ],
             textposition="inside",
         )
     )
+
+    # Trace 3: Analyst Target Price (Kursziel + Upside)
     fig.add_trace(
         go.Bar(
             y=labels,
@@ -288,12 +317,19 @@ def build_portfolio_target_price_chart(
             orientation="h",
             name="Analysten-Kursziel (Ø)",
             marker_color=target_colors,
-            text=[f"Ziel: {t:.2f}" for t in target_prices],
+            text=[
+                f"Ziel: {m.target_mean_price:.2f} {m.currency} ({m.upside_pct:+.1f}%)"
+                if m.target_mean_price > 0
+                else "Kein Ziel"
+                for m in sorted_m
+            ],
             textposition="outside",
         )
     )
-    fig.update_layout(barmode="group", height=max(360, 58 * len(sorted_m)))
-    fig.update_xaxes(title_text="Kurs / Kursziel (in Handelswährung)")
+
+    max_x = max(current_prices + target_prices + buy_in_prices + [10.0]) * 1.25
+    fig.update_layout(barmode="group", height=max(380, 75 * len(sorted_m)))
+    fig.update_xaxes(title_text="Preis pro Aktie (Kaufpreis vs. Aktueller Kurs vs. Kursziel)", range=[0, max_x])
     return _apply_common_layout(fig, theme, title)
 
 
@@ -305,10 +341,11 @@ def build_stock_price_history_chart(
     target_price: float,
     theme: ThemeConfig,
     period_label: str = "1Y",
+    buy_in_price: float = 0.0,
 ) -> go.Figure:
     """
     Build an interactive historical stock price area/line chart over the user-selected timeframe,
-    including period percentage return and optional analyst target price reference line.
+    including period percentage return, optional buy-in price line, and analyst target price line.
     """
     fig = go.Figure()
     if history_df is None or history_df.empty or "Close" not in history_df.columns:
@@ -330,6 +367,15 @@ def build_stock_price_history_chart(
             fillcolor="rgba(22, 163, 74, 0.10)" if perf_pct >= 0 else "rgba(220, 38, 38, 0.10)",
         )
     )
+
+    if buy_in_price > 0:
+        fig.add_hline(
+            y=buy_in_price,
+            line_dash="dot",
+            line_color="#64748B",
+            annotation_text=f"Dein Kaufpreis: {buy_in_price:.2f} {currency}",
+            annotation_position="bottom left",
+        )
 
     if target_price > 0:
         fig.add_hline(

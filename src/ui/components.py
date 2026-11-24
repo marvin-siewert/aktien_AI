@@ -58,11 +58,18 @@ def render_ai_evaluation_card(
     active_theme = theme or get_theme("clean_blue")
     role_badge = "💼 Bestand" if metrics.is_holding else "🎯 Kandidat"
     highlight_prefix = "🔶 [MARKIERT] " if is_highlighted else ""
+    buy_in_info = (
+        f"Kaufpreis: {metrics.buy_in_price:.2f} {metrics.currency} "
+        f"(**G/V: {metrics.gain_loss_pct:+.1f}% / {metrics.gain_loss_abs:+.2f} {metrics.currency}**) | "
+        if (metrics.is_holding and metrics.buy_in_price > 0)
+        else ""
+    )
     header = (
         f"{highlight_prefix}{role_badge} | **{metrics.name} ({metrics.ticker})** — "
-        f"Kurs: {metrics.current_price:.2f} {metrics.currency} → "
+        f"{buy_in_info}"
+        f"Aktuell: {metrics.current_price:.2f} {metrics.currency} → "
         f"Ziel: {metrics.target_mean_price:.2f} {metrics.currency} "
-        f"(**{metrics.upside_pct:+.1f}%** | {metrics.number_of_analyst_opinions} Analysten: `{metrics.recommendation_key.upper()}`) "
+        f"(**Upside: {metrics.upside_pct:+.1f}%** | {metrics.number_of_analyst_opinions} Analysten: `{metrics.recommendation_key.upper()}`) "
         f"[{metrics.assigned_sector} / {metrics.assigned_country}]"
     )
 
@@ -110,6 +117,7 @@ def render_ai_evaluation_card(
             target_price=metrics.target_mean_price,
             theme=active_theme,
             period_label=tf_label,
+            buy_in_price=metrics.buy_in_price if metrics.is_holding else 0.0,
         )
         st.plotly_chart(
             fig_hist,

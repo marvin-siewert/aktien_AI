@@ -57,7 +57,7 @@
   "chart_sunburst_title": "Diversification: Sector & Country Breakdown (Sunburst)",
   "chart_sector_bar_title": "Sector Weighting vs. Maximum Cap",
   "chart_country_bar_title": "Country Allocation in Portfolio",
-  "chart_target_bar_title": "Current Holdings: Market Price vs. Analyst Target Price",
+  "chart_target_bar_title": "Current Holdings: Buy-In Price vs. Market Price vs. Analyst Target Price (incl. P/L)",
 
   "deep_dive_header": "Monthly Deep Dive: Unbiased Re-Evaluation & Buy Signals",
   "deep_dive_desc": "Ignores historical buy-in prices (avoids Sunk Cost Fallacy) and combines analyst consensus with deep 30-day news & risk intelligence (Financials, Scandals/Espionage, Politics/Elections/Restrictions).",

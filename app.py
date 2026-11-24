@@ -227,7 +227,12 @@ def main() -> None:
 
         # Top KPI Metrics Row
         k1, k2, k3, k4, k5 = st.columns(5)
-        k1.metric(i18n.t("kpi_total_value"), f"{risk_report.total_value:,.2f} €")
+        gv_delta = (
+            f"{displayed_portfolio.total_gain_loss_abs:+.2f} € ({displayed_portfolio.total_gain_loss_pct:+.1f}%)"
+            if displayed_portfolio.total_cost_basis > 0
+            else None
+        )
+        k1.metric(i18n.t("kpi_total_value"), f"{risk_report.total_value:,.2f} €", delta=gv_delta)
         k2.metric(i18n.t("kpi_positions_count"), f"{risk_report.position_count}")
         k3.metric(
             i18n.t("kpi_max_position_weight"),
@@ -271,7 +276,7 @@ def main() -> None:
         )
         st.plotly_chart(fig_cnt, use_container_width=True)
 
-        # Chart 3: Current Holdings Price vs. Analyst Target Price
+        # Chart 3: Current Holdings Buy-In Price vs. Current Price vs. Analyst Target Price
         holdings_tickers = [p.ticker for p in displayed_portfolio.positions]
         if holdings_tickers:
             holdings_metrics = market_data.fetch_batch_metrics(
@@ -279,6 +284,8 @@ def main() -> None:
                 holding_tickers=set(holdings_tickers),
                 use_cache=True,
             )
+            for hm in holdings_metrics:
+                screener.enrich_holding_metrics_with_position(hm, displayed_portfolio)
             fig_target = build_portfolio_target_price_chart(
                 holdings_metrics,
                 active_theme,
